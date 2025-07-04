@@ -75,7 +75,7 @@ class MainActivity : AppCompatActivity(), MapListener, LocationListener {
                     val longitudeMarker = it.geometry.coordinates.first()
                     val latitudeMarker = it.geometry.coordinates.last()
                     val startPoint1 = GeoPoint(latitudeMarker, longitudeMarker)
-                    val startMarker1 = ZoomAwareMarker(binding.osmmap, minZoom = 6.0, maxZoom = 16.0).apply {
+                    val startMarker1 = ZoomAwareMarker(binding.osmmap, minZoom = 16.0, maxZoom = 18.0).apply {
                         position = startPoint1
                         icon = ContextCompat.getDrawable(this@MainActivity, R.drawable.dw)
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)

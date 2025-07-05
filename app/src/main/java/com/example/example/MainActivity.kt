@@ -14,12 +14,21 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatActivity.LOCATION_SERVICE
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.ContextCompat.getSystemService
+import androidx.core.content.ContextCompat.startActivity
 import androidx.lifecycle.lifecycleScope
+import com.example.example.MainActivity.constants
 import com.example.example.databinding.ActivityMainBinding
 import com.google.android.gms.location.LocationListener
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 
 import kotlinx.coroutines.launch
 import org.osmdroid.api.IMapController
@@ -46,7 +55,6 @@ class MainActivity : AppCompatActivity(), MapListener, LocationListener {
     companion object constants {
         const val LOCATION_PERMISSION_REQUEST_CODE = 1
     }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -56,39 +64,59 @@ class MainActivity : AppCompatActivity(), MapListener, LocationListener {
             applicationContext,
             getSharedPreferences(getString(R.string.app_name), MODE_PRIVATE)
         )
+
         map = binding.osmmap
         map.mapCenter
         map.setMultiTouchControls(true)
         map.getLocalVisibleRect(Rect())
+        initializeMap()
+        val scope1 = CoroutineScope(Job()+Dispatchers.Main)
 
-
-        lifecycleScope.launch {
-            initializeMap()
-            delay(5000)
-            viewModel.getPlace(
-                mMyLocationOverlay.myLocation.longitude,
-                mMyLocationOverlay.myLocation.latitude
-            )
-            viewModel.place.collect { streetName ->
-                streetName?.forEach {
-
-                    val longitudeMarker = it.geometry.coordinates.first()
-                    val latitudeMarker = it.geometry.coordinates.last()
-                    val startPoint1 = GeoPoint(latitudeMarker, longitudeMarker)
-                    val startMarker1 = ZoomAwareMarker(binding.osmmap, minZoom = 16.0, maxZoom = 18.0).apply {
-                        position = startPoint1
-                        icon = ContextCompat.getDrawable(this@MainActivity, R.drawable.dw)
-                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        title = it.properties.name
+        viewModel.locationFlow
+            .onEach { location ->
+                location?.let {
+                    // Обработка новых координат
+                    val lat = it.latitude
+                    val lng = it.longitude
+                    delay(5000)
+                    binding.myLocationButton.performClick()
+                    viewModel.getPlace(lng,lat)
+                    /*viewModel.getPlace(
+                        mMyLocationOverlay.myLocation.longitude,
+                        mMyLocationOverlay.myLocation.latitude
+                    )*/
+                    viewModel.place.collect { streetName ->
+                        streetName?.forEach {
+                            val longitudeMarker = it.geometry.coordinates.first()
+                            val latitudeMarker = it.geometry.coordinates.last()
+                            val startPoint1 = GeoPoint(latitudeMarker, longitudeMarker)
+                            val startMarker1 = ZoomAwareMarker(binding.osmmap, minZoom = 16.0, maxZoom = 18.0).apply {
+                                position = startPoint1
+                                icon = ContextCompat.getDrawable(this@MainActivity, R.drawable.dw)
+                                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                title = it.properties.name
+                            }
+                            map.overlays.add(startMarker1)
+                        }
 
                     }
-
-
-                    map.overlays.add(startMarker1)
                 }
-                Log.e("TAG", "============PLACE INFO in MAIN IS ${streetName}============")
             }
+            .launchIn(lifecycleScope)
+
+        scope1.launch {
+
         }
+        CoroutineScope(Dispatchers.Main).launch {
+
+        }
+        lifecycleScope.launch {
+            //binding.myLocationButton.performClick()
+
+
+        }
+
+
     }
 
     private fun initializeMap() {
@@ -99,8 +127,8 @@ class MainActivity : AppCompatActivity(), MapListener, LocationListener {
         mMyLocationOverlay.enableFollowLocation()
         mMyLocationOverlay.isDrawAccuracyEnabled = true
 
-
         val myLocationButton = binding.myLocationButton
+
         myLocationButton.setOnClickListener {
 // Get the current location from the MyLocationNewOverlay
             val myLocation = mMyLocationOverlay.myLocation
@@ -120,6 +148,7 @@ class MainActivity : AppCompatActivity(), MapListener, LocationListener {
 
         map.overlays.add(mMyLocationOverlay)
         map.addMapListener(this)
+
 
 // Initialize LocationManager
         locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
@@ -202,20 +231,6 @@ class MainActivity : AppCompatActivity(), MapListener, LocationListener {
     override fun onLocationChanged(location: Location) {
 // Handle location changes here
         Log.d("TAG", "Location changed: ${location.latitude}, ${location.longitude}")
-    }
-}
-
-class ZoomAwareMarker(
-    mapView: MapView,
-    private val minZoom: Double = 10.0,
-    private val maxZoom: Double = 20.0
-) : Marker(mapView) {
-
-    override fun draw(canvas: Canvas, mapView: MapView, shadow: Boolean) {
-        val currentZoom = mapView.zoomLevelDouble
-        if (currentZoom in minZoom..maxZoom) {
-            super.draw(canvas, mapView, shadow)
-        }
     }
 }
 

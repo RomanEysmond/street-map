@@ -19,4 +19,43 @@
         android:layout_centerHorizontal="true"
         android:text="@string/show_button" />
 
+    <Button
+        android:id="@+id/viewOfflineAreasButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:text="@string/view_offline_areas_button" />
+
+    <Button
+        android:id="@+id/saveAreaButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentStart="true"
+        android:layout_toStartOf="@id/viewOfflineAreasButton"
+        android:text="@string/save_area_button" />
+
+    <ProgressBar
+        android:id="@+id/saveAreaProgressBar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/saveAreaButton"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="8dp"
+        android:max="100"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/saveAreaStatusText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/saveAreaProgressBar"
+        android:layout_marginHorizontal="16dp"
+        android:gravity="center"
+        android:visibility="gone" />
+
 </RelativeLayout>

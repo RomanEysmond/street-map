@@ -1,60 +1,50 @@
 package com.example.example
 
-import android.content.Context
+import android.Manifest
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Canvas
-import android.graphics.Rect
-import android.location.Location
 import android.location.LocationManager
 import android.os.Bundle
 import android.provider.Settings
-import android.util.Log
+import android.view.Gravity
+import android.view.View
+import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.viewModels
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.app.AppCompatActivity.LOCATION_SERVICE
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.ContextCompat.getSystemService
-import androidx.core.content.ContextCompat.startActivity
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import com.example.example.MainActivity.constants
+import androidx.lifecycle.repeatOnLifecycle
 import com.example.example.databinding.ActivityMainBinding
-import com.google.android.gms.location.LocationListener
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
-
+import com.example.example.domain.model.DownloadProgress
+import com.example.example.domain.model.GeoBoundingBox
+import com.example.example.domain.model.PlaceOfInterest
+import com.example.example.offline.OfflineAreasActivity
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
-import org.osmdroid.api.IMapController
 import org.osmdroid.config.Configuration
-import org.osmdroid.events.MapListener
-import org.osmdroid.events.ScrollEvent
-import org.osmdroid.events.ZoomEvent
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 
+@AndroidEntryPoint
+class MainActivity : AppCompatActivity() {
 
-
-class MainActivity : AppCompatActivity(), MapListener, LocationListener {
-    private lateinit var map: MapView
-    private lateinit var controller: IMapController
-    private lateinit var mMyLocationOverlay: MyLocationNewOverlay
-    private lateinit var locationManager: LocationManager
     private lateinit var binding: ActivityMainBinding
-    private val targetZoomLevel = 20.0
+    private lateinit var map: MapView
+    private lateinit var myLocationOverlay: MyLocationNewOverlay
+    private val placeMarkers = mutableListOf<Marker>()
+
     private val viewModel: MainViewModel by viewModels()
-    companion object constants {
-        const val LOCATION_PERMISSION_REQUEST_CODE = 1
-    }
+
+    private val targetZoomLevel = 20.0
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -66,115 +56,167 @@ class MainActivity : AppCompatActivity(), MapListener, LocationListener {
         )
 
         map = binding.osmmap
-        map.mapCenter
         map.setMultiTouchControls(true)
-        map.getLocalVisibleRect(Rect())
+
         initializeMap()
-        val scope1 = CoroutineScope(Job()+Dispatchers.Main)
-
-        viewModel.locationFlow
-            .onEach { location ->
-                location?.let {
-                    // Обработка новых координат
-                    val lat = it.latitude
-                    val lng = it.longitude
-                    delay(5000)
-                    binding.myLocationButton.performClick()
-                    viewModel.getPlace(lng,lat)
-                    /*viewModel.getPlace(
-                        mMyLocationOverlay.myLocation.longitude,
-                        mMyLocationOverlay.myLocation.latitude
-                    )*/
-                    viewModel.place.collect { streetName ->
-                        streetName?.forEach {
-                            val longitudeMarker = it.geometry.coordinates.first()
-                            val latitudeMarker = it.geometry.coordinates.last()
-                            val startPoint1 = GeoPoint(latitudeMarker, longitudeMarker)
-                            val startMarker1 = ZoomAwareMarker(binding.osmmap, minZoom = 16.0, maxZoom = 18.0).apply {
-                                position = startPoint1
-                                icon = ContextCompat.getDrawable(this@MainActivity, R.drawable.dw)
-                                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                                title = it.properties.name
-                            }
-                            map.overlays.add(startMarker1)
-                        }
-
-                    }
-                }
-            }
-            .launchIn(lifecycleScope)
-
-        scope1.launch {
-
-        }
-        CoroutineScope(Dispatchers.Main).launch {
-
-        }
-        lifecycleScope.launch {
-            //binding.myLocationButton.performClick()
-
-
-        }
-
-
+        initializeButtons()
+        observeViewModel()
     }
 
     private fun initializeMap() {
-        mMyLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(this), map)
-        controller = map.controller
+        myLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(this), map)
+        myLocationOverlay.enableMyLocation()
+        myLocationOverlay.enableFollowLocation()
+        myLocationOverlay.isDrawAccuracyEnabled = true
+        map.overlays.add(myLocationOverlay)
 
-        mMyLocationOverlay.enableMyLocation()
-        mMyLocationOverlay.enableFollowLocation()
-        mMyLocationOverlay.isDrawAccuracyEnabled = true
-
-        val myLocationButton = binding.myLocationButton
-
-        myLocationButton.setOnClickListener {
-// Get the current location from the MyLocationNewOverlay
-            val myLocation = mMyLocationOverlay.myLocation
-
+        binding.myLocationButton.setOnClickListener {
+            val myLocation = myLocationOverlay.myLocation
             if (myLocation != null) {
-// Move the map to the current location
-                controller.setCenter(myLocation)
-                controller.animateTo(myLocation)
-                controller.setZoom(targetZoomLevel)
+                map.controller.setCenter(myLocation)
+                map.controller.animateTo(myLocation)
+                map.controller.setZoom(targetZoomLevel)
             } else {
                 Toast.makeText(this, "Location not available yet.", Toast.LENGTH_SHORT).show()
             }
         }
 
-        Log.e("TAG", "onCreate:in ${controller.zoomIn()}")
-        Log.e("TAG", "onCreate: out ${controller.zoomOut()}")
-
-        map.overlays.add(mMyLocationOverlay)
-        map.addMapListener(this)
-
-
-// Initialize LocationManager
-        locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
-// Request location updates
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                android.Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
-                this,
-                android.Manifest.permission.ACCESS_COARSE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
+        if (!hasLocationPermission()) {
             requestLocationPermission()
         }
-            //Check enabled location
-        if(!isLocationEnabled()){
+        if (!isLocationEnabled()) {
             showEnableLocationDialog()
         }
+    }
 
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 1f, this)
+    private fun initializeButtons() {
+        binding.saveAreaButton.setOnClickListener { showSaveAreaDialog() }
+        binding.viewOfflineAreasButton.setOnClickListener {
+            startActivity(Intent(this, OfflineAreasActivity::class.java))
+        }
+    }
+
+    private fun observeViewModel() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    viewModel.uiState.collect { state ->
+                        renderPlaces(state.nearbyPlaces)
+                        state.errorMessage?.let {
+                            Toast.makeText(this@MainActivity, it, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+                launch {
+                    viewModel.saveAreaState.collect { progress -> renderSaveAreaProgress(progress) }
+                }
+            }
+        }
+    }
+
+    private fun renderPlaces(places: List<PlaceOfInterest>) {
+        placeMarkers.forEach { map.overlays.remove(it) }
+        placeMarkers.clear()
+
+        places.forEach { place ->
+            val marker = ZoomAwareMarker(map, minZoom = 16.0, maxZoom = 20.0).apply {
+                position = GeoPoint(place.coordinates.latitude, place.coordinates.longitude)
+                icon = ContextCompat.getDrawable(this@MainActivity, R.drawable.dw)
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                title = place.name
+            }
+            placeMarkers.add(marker)
+            map.overlays.add(marker)
+        }
+        map.invalidate()
+    }
+
+    private fun renderSaveAreaProgress(progress: DownloadProgress?) {
+        when (progress) {
+            null -> {
+                binding.saveAreaProgressBar.visibility = View.GONE
+                binding.saveAreaStatusText.visibility = View.GONE
+            }
+            is DownloadProgress.Started -> {
+                binding.saveAreaProgressBar.visibility = View.VISIBLE
+                binding.saveAreaProgressBar.isIndeterminate = true
+                binding.saveAreaStatusText.visibility = View.VISIBLE
+                binding.saveAreaStatusText.text = getString(R.string.save_area_progress_started)
+            }
+            is DownloadProgress.TileProgress -> {
+                binding.saveAreaProgressBar.visibility = View.VISIBLE
+                binding.saveAreaProgressBar.isIndeterminate = false
+                val total = progress.total.coerceAtLeast(1)
+                binding.saveAreaProgressBar.progress = (progress.downloaded * 100 / total)
+                binding.saveAreaStatusText.visibility = View.VISIBLE
+                binding.saveAreaStatusText.text = getString(R.string.save_area_progress_tiles, progress.downloaded, progress.total)
+            }
+            is DownloadProgress.PersistingPlaces -> {
+                binding.saveAreaProgressBar.visibility = View.VISIBLE
+                binding.saveAreaProgressBar.isIndeterminate = true
+                binding.saveAreaStatusText.visibility = View.VISIBLE
+                binding.saveAreaStatusText.text = getString(R.string.save_area_progress_places)
+            }
+            is DownloadProgress.Completed -> {
+                binding.saveAreaProgressBar.visibility = View.GONE
+                binding.saveAreaStatusText.visibility = View.GONE
+                Toast.makeText(this, getString(R.string.save_area_progress_completed, progress.area.name), Toast.LENGTH_SHORT).show()
+                viewModel.clearSaveAreaState()
+            }
+            is DownloadProgress.Failed -> {
+                binding.saveAreaProgressBar.visibility = View.GONE
+                binding.saveAreaStatusText.visibility = View.GONE
+                Toast.makeText(this, getString(R.string.save_area_progress_failed, progress.message), Toast.LENGTH_LONG).show()
+                viewModel.clearSaveAreaState()
+            }
+        }
+    }
+
+    private fun showSaveAreaDialog() {
+        val input = EditText(this).apply {
+            hint = getString(R.string.save_area_dialog_name_hint)
+        }
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            val padding = (16 * resources.displayMetrics.density).toInt()
+            setPadding(padding, padding, padding, padding)
+            addView(input)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.save_area_dialog_title)
+            .setView(container)
+            .setPositiveButton(R.string.save_area_dialog_positive) { _, _ ->
+                val name = input.text.toString()
+                val bbox = map.boundingBox
+                val zoom = map.zoomLevelDouble.toInt()
+                viewModel.saveCurrentArea(
+                    name = name,
+                    boundingBox = GeoBoundingBox(
+                        north = bbox.latNorth,
+                        south = bbox.latSouth,
+                        east = bbox.lonEast,
+                        west = bbox.lonWest
+                    ),
+                    minZoom = (zoom - 1).coerceAtLeast(1),
+                    maxZoom = (zoom + 2)
+                )
+            }
+            .setNegativeButton(R.string.save_area_dialog_negative, null)
+            .show()
+    }
+
+    private fun hasLocationPermission(): Boolean {
+        val fine = ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+        val coarse = ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+        return fine == PackageManager.PERMISSION_GRANTED || coarse == PackageManager.PERMISSION_GRANTED
     }
 
     private fun isLocationEnabled(): Boolean {
-        val locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
         return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
-                locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+            locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
     }
 
     private fun showEnableLocationDialog() {
@@ -188,11 +230,10 @@ class MainActivity : AppCompatActivity(), MapListener, LocationListener {
             .show()
     }
 
-
     private fun requestLocationPermission() {
         ActivityCompat.requestPermissions(
             this,
-            arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION),
+            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
             LOCATION_PERMISSION_REQUEST_CODE
         )
     }
@@ -202,44 +243,18 @@ class MainActivity : AppCompatActivity(), MapListener, LocationListener {
         permissions: Array<out String>,
         grantResults: IntArray
     ) {
-        when (requestCode) {
-            LOCATION_PERMISSION_REQUEST_CODE -> {
-                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-// Permission granted, initialize the map
-                    initializeMap()
-                } else {
-// Permission denied, handle accordingly (e.g., show a message to the user)
-                    Toast.makeText(this, "Location permission denied.", Toast.LENGTH_SHORT).show()
-                }
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                myLocationOverlay.enableMyLocation()
+                viewModel.retryLocationUpdates()
+            } else {
+                Toast.makeText(this, "Location permission denied.", Toast.LENGTH_SHORT).show()
             }
-
-            else -> super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         }
     }
 
-    override fun onScroll(event: ScrollEvent?): Boolean {
-        Log.e("TAG", "onCreate:la ${event?.source?.mapCenter?.latitude}")
-        Log.e("TAG", "onCreate:lo ${event?.source?.mapCenter?.longitude}")
-        return true
+    companion object {
+        private const val LOCATION_PERMISSION_REQUEST_CODE = 1
     }
-
-    override fun onZoom(event: ZoomEvent?): Boolean {
-        Log.e("TAG", "onZoom zoom level: ${event?.zoomLevel} source: ${event?.source}")
-        return false
-    }
-
-    override fun onLocationChanged(location: Location) {
-// Handle location changes here
-        Log.d("TAG", "Location changed: ${location.latitude}, ${location.longitude}")
-    }
-}
-
-
-private fun LocationManager.requestLocationUpdates(
-    gpsProvider: String,
-    i: Int,
-    fl: Float,
-    mainActivity: MainActivity
-) {
-
 }

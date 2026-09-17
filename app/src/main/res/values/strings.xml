@@ -2,5 +2,19 @@
     <string name="app_name">Attractions</string>
     <string name="title_activity_maps">MapsActivity</string>
     <string name="show_button">Show My Location</string>
+    <string name="save_area_button">Save area offline</string>
+    <string name="view_offline_areas_button">Offline areas</string>
+    <string name="offline_areas_title">Offline areas</string>
+    <string name="offline_area_delete">Delete</string>
+    <string name="offline_areas_empty">No offline areas saved yet</string>
+    <string name="save_area_dialog_title">Save current area for offline use</string>
+    <string name="save_area_dialog_name_hint">Area name</string>
+    <string name="save_area_dialog_positive">Save</string>
+    <string name="save_area_dialog_negative">Cancel</string>
+    <string name="save_area_progress_started">Preparing download…</string>
+    <string name="save_area_progress_tiles">Downloading tiles: %1$d / %2$d</string>
+    <string name="save_area_progress_places">Saving points of interest…</string>
+    <string name="save_area_progress_completed">"%1$s" saved for offline use</string>
+    <string name="save_area_progress_failed">Failed to save area: %1$s</string>
 
 </resources>

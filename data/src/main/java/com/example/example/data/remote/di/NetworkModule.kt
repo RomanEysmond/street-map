@@ -1,6 +1,7 @@
 package com.example.example.data.remote.di
 
 import com.example.example.data.BuildConfig
+import com.example.example.data.local.prefs.ApiKeyStore
 import com.example.example.data.remote.OpenTripMapApi
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -31,10 +32,11 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideApiKeyInterceptor(): Interceptor = Interceptor { chain ->
+    fun provideApiKeyInterceptor(apiKeyStore: ApiKeyStore): Interceptor = Interceptor { chain ->
         val original = chain.request()
+        val key = apiKeyStore.get()?.takeIf { it.isNotBlank() } ?: BuildConfig.OPEN_TRIP_MAP_API_KEY
         val urlWithKey: HttpUrl = original.url.newBuilder()
-            .addQueryParameter("apikey", BuildConfig.OPEN_TRIP_MAP_API_KEY)
+            .addQueryParameter("apikey", key)
             .build()
         chain.proceed(original.newBuilder().url(urlWithKey).build())
     }

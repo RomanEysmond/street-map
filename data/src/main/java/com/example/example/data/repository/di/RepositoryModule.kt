@@ -5,8 +5,10 @@ import com.example.example.data.connectivity.ConnectivityChecker
 import com.example.example.data.location.LocationRepositoryImpl
 import com.example.example.data.offline.tiles.OsmdroidTileCacheDataSource
 import com.example.example.data.offline.tiles.TileCacheDataSource
+import com.example.example.data.repository.ApiKeyRepositoryImpl
 import com.example.example.data.repository.OfflineAreaRepositoryImpl
 import com.example.example.data.repository.PlacesRepositoryImpl
+import com.example.example.domain.repository.ApiKeyRepository
 import com.example.example.domain.repository.LocationRepository
 import com.example.example.domain.repository.OfflineAreaRepository
 import com.example.example.domain.repository.PlacesRepository
@@ -39,4 +41,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindConnectivityChecker(impl: AndroidConnectivityChecker): ConnectivityChecker
+
+    @Binds
+    @Singleton
+    abstract fun bindApiKeyRepository(impl: ApiKeyRepositoryImpl): ApiKeyRepository
 }

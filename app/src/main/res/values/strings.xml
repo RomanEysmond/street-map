@@ -17,4 +17,9 @@
     <string name="save_area_progress_completed">"%1$s" saved for offline use</string>
     <string name="save_area_progress_failed">Failed to save area: %1$s</string>
 
+    <string name="api_key_title">Ключ OpenTripMap</string>
+    <string name="api_key_helper_text">Для поиска мест на карте нужен личный ключ OpenTripMap (opentripmap.com). Сама карта работает без него — ключ нужен только для поиска.</string>
+    <string name="api_key_hint">Ваш API-ключ OpenTripMap</string>
+    <string name="api_key_save_button">Сохранить</string>
+
 </resources>
